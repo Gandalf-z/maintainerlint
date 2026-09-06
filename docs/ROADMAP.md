@@ -17,7 +17,7 @@ MaintainerLint is intentionally shipping in small, testable layers.
 - [ ] richer glob semantics and rule diagnostics;
 - [ ] `maintainerlint impact --markdown` for PR comments;
 - [ ] explicit generated-file consistency stage helpers;
-- [ ] Windows path/redaction fixtures;
+- [x] Windows path/redaction fixtures and CI coverage;
 - [ ] examples for Python, Node, and mixed repositories.
 
 ## v0.3 — maintainer automation

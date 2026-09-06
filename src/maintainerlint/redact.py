@@ -15,12 +15,31 @@ _SECRET_PATTERNS = (
 )
 
 
+def _path_spellings(path: Path) -> tuple[str, ...]:
+    raw = str(path)
+    spellings = {raw}
+    if "\\" in raw:
+        spellings.add(raw.replace("\\", "/"))
+    if re.match(r"^[A-Za-z]:/", raw):
+        spellings.add(raw.replace("/", "\\"))
+    return tuple(sorted((item for item in spellings if item), key=len, reverse=True))
+
+
+def _redact_path(value: str, path: Path, marker: str) -> str:
+    for spelling in _path_spellings(path):
+        if re.match(r"^[A-Za-z]:[\\/]", spelling):
+            value = re.sub(re.escape(spelling), marker, value, flags=re.IGNORECASE)
+        else:
+            value = value.replace(spelling, marker)
+    return value
+
+
 def redact(text: object, *, repo: Path | None = None, home: Path | None = None) -> str:
     value = str(text or "")
     if repo is not None:
-        value = value.replace(str(repo), "<REPO>")
+        value = _redact_path(value, repo, "<REPO>")
     home = home or Path.home()
-    value = value.replace(str(home), "<HOME>")
+    value = _redact_path(value, home, "<HOME>")
     for index, pattern in enumerate(_SECRET_PATTERNS):
         if index == 1:
             value = pattern.sub(lambda match: f"{match.group(1)}<REDACTED>", value)

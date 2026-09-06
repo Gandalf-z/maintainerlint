@@ -17,6 +17,22 @@ class RunnerTests(unittest.TestCase):
             self.assertNotIn("supersecret", content)
             self.assertIn("<REDACTED>", content)
 
+    def test_windows_style_crlf_output_is_sanitized(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp).resolve()
+            script = (
+                "import sys; "
+                "sys.stdout.write('ERROR: The system cannot find the path specified.\\r\\n' "
+                "+ 'API_KEY=windows-secret\\r\\n')"
+            )
+            stage = Stage("windows-output", ("python", "-c", script))
+            result = run_stage(stage, repo=repo, log_root=repo / ".maintainerlint" / "logs")
+            self.assertTrue(result.passed)
+            content = result.log_path.read_text()
+            self.assertNotIn("windows-secret", content)
+            self.assertIn("The system cannot find the path specified", content)
+            self.assertIn("<REDACTED>", content)
+
     def test_failure_is_reported(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp).resolve()

@@ -19,6 +19,12 @@ MaintainerLint v0.1.0:
 
 Redaction is defense-in-depth, **not** a guarantee that arbitrary secrets can never appear in output. Do not intentionally print secrets into build logs.
 
+## Local log permissions
+
+On POSIX systems MaintainerLint explicitly attempts to set `.maintainerlint/` directories to mode `0700` and persisted log files to `0600`. On Windows it does not rewrite NTFS ACLs; log files inherit the working tree's directory permissions. Treat `.maintainerlint/` as private local data and avoid placing the repository in a broadly shared directory.
+
+Path redaction recognizes both `\` and `/` spellings for Windows drive paths so common tool output cannot bypass repository/home path masking solely because it uses a different separator style.
+
 ## Reporting a vulnerability
 
 Please avoid filing public issues containing live credentials, private source, or exploit details that would put users at immediate risk. Contact the repository maintainer privately through the security-reporting method configured on the GitHub repository.
