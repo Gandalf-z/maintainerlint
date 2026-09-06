@@ -7,9 +7,10 @@ import sys
 from . import __version__
 from .config import ConfigError, load_config
 from .doctor import environment_findings, suspicious_tracked_files
-from .gitutils import GitError, changed_files, repo_root, tracked_files
+from .gitutils import GitError, changed_entries, changed_files, repo_root, tracked_files
 from .impact import evaluate_rules
 from .runner import StageExecutionError, run_stage
+from .scope import evaluate_scope
 from .templates import DEFAULT_CONFIG, PR_TEMPLATE
 
 
@@ -114,6 +115,36 @@ def command_impact(args: argparse.Namespace) -> int:
     return 1 if args.strict and unsatisfied else 0
 
 
+def command_scope(args: argparse.Namespace) -> int:
+    repo = _resolve_repo(args.repo)
+    changes = changed_entries(repo, args.base, args.head)
+    result = evaluate_scope(
+        changes,
+        tuple(args.allow),
+        tuple(args.allow_support or ()),
+    )
+
+    if not changes:
+        print("PASS scope: no changed files")
+        return 0
+
+    if result.satisfied:
+        print(
+            f"PASS scope: {len(changes)} change(s) stayed within "
+            f"{len(args.allow)} primary and {len(args.allow_support or ())} support pattern(s)"
+        )
+        return 0
+
+    label = "FAIL" if args.strict else "WARN"
+    print(f"{label} scope: {len(result.escaped_paths)} path(s) escaped the declared boundary")
+    for finding in result.findings:
+        rendered = " -> ".join(finding.change.paths)
+        print(f"  {finding.change.status} {rendered}")
+        for path in finding.escaped_paths:
+            print(f"    escaped: {path}")
+    return 1 if args.strict else 0
+
+
 def command_doctor(args: argparse.Namespace) -> int:
     repo = _resolve_repo(args.repo)
     config = load_config(_config_path(repo, args.config))
@@ -163,6 +194,24 @@ def build_parser() -> argparse.ArgumentParser:
     impact.add_argument("--strict", action="store_true", help="exit non-zero when a rule is unsatisfied")
     impact.add_argument("--format", choices=("text", "json"), default="text")
     impact.set_defaults(func=command_impact)
+
+    scope = sub.add_parser("scope", help="check that a Git diff stayed inside declared path boundaries")
+    scope.add_argument("--repo")
+    scope.add_argument("--base", default="HEAD~1")
+    scope.add_argument("--head", default="HEAD")
+    scope.add_argument(
+        "--allow",
+        action="append",
+        required=True,
+        help="allowed primary path glob; repeatable",
+    )
+    scope.add_argument(
+        "--allow-support",
+        action="append",
+        help="allowed support-artifact glob (for example docs/**); repeatable",
+    )
+    scope.add_argument("--strict", action="store_true", help="exit non-zero when any path escapes")
+    scope.set_defaults(func=command_scope)
 
     doctor = sub.add_parser("doctor", help="check repo/config prerequisites and tracked-secret risks")
     doctor.add_argument("--repo")

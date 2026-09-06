@@ -31,7 +31,7 @@ MaintainerLint is intentionally narrow:
 
 Its job is repository policy: make the maintainer's existing quality, documentation, and safety expectations cheap for humans and coding agents to follow consistently.
 
-## v0.1.0 capabilities
+## Current capabilities
 
 ### 1. Low-output verification gates
 
@@ -95,7 +95,26 @@ The first release checks:
 - MaintainerLint config is valid;
 - high-confidence secret-like files such as `.env`, private keys, or `credentials.json` are not tracked.
 
-### 4. Safe starter setup
+### 4. Changed-file scope guard
+
+Declare the paths an implementation task is allowed to modify:
+
+```bash
+maintainerlint scope \
+  --base origin/main \
+  --head HEAD \
+  --allow "src/payments/**" \
+  --allow "tests/payments/**" \
+  --allow-support "docs/**" \
+  --allow-support "CHANGELOG.md" \
+  --strict
+```
+
+`--allow` is the primary implementation boundary. `--allow-support` is for supporting artifacts such as documentation or changelog entries; it does **not** bypass `maintainerlint impact`.
+
+In strict mode, an unexpected changed path exits non-zero and is listed explicitly. Renames check both the old and new path, deletions check the deleted path, and copies check the destination path.
+
+### 5. Safe starter setup
 
 ```bash
 maintainerlint init --pr-template
@@ -127,6 +146,8 @@ Repository audit + scoped implementation plan
       ↓
 Agent executes only the approved change
       ↓
+maintainerlint scope --strict
+      ↓
 Targeted tests
       ↓
 maintainerlint check
@@ -155,6 +176,8 @@ See [docs/WORKFLOW.md](docs/WORKFLOW.md) for the full model.
   run: maintainerlint impact --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.sha }}" --strict
 ```
 
+For task-specific jobs, add a scope gate with the task's explicit allow patterns. Do not use one overly broad repository-wide allowlist merely to make the check green.
+
 The repository itself uses MaintainerLint in CI.
 
 ## Design principles
@@ -169,9 +192,9 @@ The repository itself uses MaintainerLint in CI.
 
 ## Project status
 
-`v0.1.0` is intentionally small. The next milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+`v0.1.0` is the initial public baseline. New deterministic gates are developed through focused Issues and PRs and recorded in [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
-Good first contributions include additional deterministic checks, better cross-platform log handling, configuration validation, and CI adapters.
+Good first contributions include deterministic checks, repository adoption improvements, machine-readable reports, and CI adapters.
 
 ## Contributing
 

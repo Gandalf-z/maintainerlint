@@ -24,7 +24,7 @@ MaintainerLint is intentionally shipping in small, testable layers.
 
 - [ ] optional GitHub PR check summary;
 - [ ] issue-to-implementation-packet schema;
-- [ ] bounded changed-file scope guard;
+- [x] bounded changed-file scope guard;
 - [ ] machine-readable JSON result schema for agent integrations;
 - [ ] release checklist gate.
 
