@@ -141,9 +141,38 @@ maintainerlint init --detect --pr-template
 
 Current high-confidence signals include pytest/tox configuration for Python, recognized `package.json` scripts for Node, `Cargo.toml` for Rust, and `go.mod` for Go. An existing `maintainerlint.toml` is never overwritten unless `--force` is explicitly supplied.
 
-## Install from source
+## Try v0.2.0 in 60 seconds
 
-MaintainerLint currently requires Python 3.11+.
+MaintainerLint requires Python 3.11+. You can install the tagged v0.2.0 release directly from GitHub without cloning this repository:
+
+```bash
+python -m pip install "https://github.com/Gandalf-z/maintainerlint/archive/refs/tags/v0.2.0.zip"
+maintainerlint --version
+```
+
+For a first trial in an existing repository, use a disposable branch because `init` writes `maintainerlint.toml`:
+
+```bash
+git switch -c try-maintainerlint
+maintainerlint init --detect
+maintainerlint doctor
+```
+
+Inspect the generated `maintainerlint.toml` before keeping it. If the proposed checks match the repository's existing maintenance policy, run:
+
+```bash
+maintainerlint check
+```
+
+If the proposal is wrong or too generic, delete the generated file or discard the trial branch. MaintainerLint deliberately prefers an explicit fallback over inventing repository-specific policy.
+
+Tried MaintainerLint in a real repository? [Open an adoption report](https://github.com/Gandalf-z/maintainerlint/issues/new?title=Adoption%20report%3A%20) with the public repository URL if shareable, the ecosystem, what MaintainerLint detected, and anything that worked or failed. Real negative feedback is as useful as a successful adoption report.
+
+The runtime has **zero third-party dependencies**.
+
+### Install from source for development
+
+Contributors working on MaintainerLint itself can still use an editable source install:
 
 ```bash
 git clone https://github.com/Gandalf-z/maintainerlint.git
@@ -151,8 +180,6 @@ cd maintainerlint
 python -m pip install -e .
 maintainerlint --version
 ```
-
-The runtime has **zero third-party dependencies**.
 
 ## Recommended agent workflow
 
@@ -211,7 +238,7 @@ The repository itself uses MaintainerLint in CI.
 
 ## Project status
 
-`v0.1.0` is the initial public baseline. New deterministic gates are developed through focused Issues and PRs and recorded in [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+`v0.2.0` is the first tagged public GitHub Release. The initial `v0.1.0` code baseline was not published as a GitHub Release. New deterministic gates continue through focused Issues and PRs and are recorded in [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 Good first contributions include deterministic checks, repository adoption improvements, machine-readable reports, and CI adapters.
 
