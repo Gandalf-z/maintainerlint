@@ -12,19 +12,41 @@ python -m pip install -e .
 
 Once published as a package, projects will be able to pin a released version instead.
 
-## 2. Create the starter policy
+## 2. Create or detect a starter policy
 
-Inside the target repository:
+The generic starter remains available:
 
 ```bash
 maintainerlint init --pr-template
 ```
 
-Review the generated `maintainerlint.toml` before committing it. The generated commands are examples, not project truth.
+For a brownfield repository, explicitly request conservative detection:
+
+```bash
+maintainerlint init --detect --pr-template
+```
+
+Detection prints repository signals and every proposed command before writing `maintainerlint.toml`. It does not execute those commands, install dependencies, use an LLM, or access the network.
+
+Examples of high-confidence proposals:
+
+```text
+DETECT node: package.json
+PROPOSE node/tests: npm run test (package.json scripts.test)
+PROPOSE node/lint: npm run lint (package.json scripts.lint)
+USE detected node stages
+CREATE /repo/maintainerlint.toml
+```
+
+Only one supported ecosystem with at least one high-confidence proposal is auto-adopted. Empty repositories, metadata-only signals, or multi-ecosystem repositories fall back to the generic starter. This is intentional: a mixed monorepo needs maintainer judgment instead of a guessed test strategy.
+
+Existing `maintainerlint.toml` files are never overwritten unless `--force` is supplied. Even with `--force`, ambiguous detection still falls back rather than selecting an ecosystem arbitrarily.
+
+Review every generated command before committing the policy. Detection is evidence-based assistance, not project truth.
 
 ## 3. Map existing checks instead of inventing new ones
 
-Add the commands maintainers already trust:
+Keep or replace detected proposals with the commands maintainers already trust:
 
 ```toml
 [[stages]]

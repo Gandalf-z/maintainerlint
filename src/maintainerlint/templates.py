@@ -1,3 +1,104 @@
-DEFAULT_CONFIG = '''# MaintainerLint configuration\nversion = 1\n\n# Each stage runs in order. MaintainerLint keeps full sanitized logs locally and\n# prints only concise PASS/FAIL output unless a stage fails.\n[[stages]]\nname = "tests"\ncommand = ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]\ntimeout = 300\n\n[[stages]]\nname = "diff"\ncommand = ["git", "diff", "--check"]\ntimeout = 60\n\n# Documentation rules are opt-in and project-specific.\n# A rule triggers when any `patterns` path changes.\n# - required_any: at least one listed document must change.\n# - required_all: every listed document must change.\n[docs]\n\n# Example:\n# [[docs.rules]]\n# name = "public CLI contract"\n# patterns = ["src/myproject/cli.py", "src/myproject/config.py"]\n# required_any = ["README.md", "docs/CLI.md"]\n\n[security]\ntracked_secret_allowlist = [".env.example"]\n'''
+from __future__ import annotations
 
-PR_TEMPLATE = '''## Scope\n\n<!-- What does this PR change, and what is explicitly out of scope? -->\n\n## Verification\n\n- [ ] Targeted tests passed\n- [ ] `maintainerlint check` passed\n- [ ] `git diff --check` passed\n\n## Documentation impact\n\n- [ ] No documentation impact\n- [ ] Current-state / architecture docs\n- [ ] API / contract docs\n- [ ] User docs\n- [ ] Design / decision lifecycle docs\n\n**Documentation drift review:** Does this PR make code/config/tests disagree with current-truth documentation?\n\n## Human verification\n\n<!-- List any real-environment checks that should remain human-owned. -->\n'''
+import json
+
+from .detect import StageProposal
+
+
+_CONFIG_TAIL = '''# Documentation rules are opt-in and project-specific.
+# A rule triggers when any `patterns` path changes.
+# - required_any: at least one listed document must change.
+# - required_all: every listed document must change.
+[docs]
+
+# Example:
+# [[docs.rules]]
+# name = "public CLI contract"
+# patterns = ["src/myproject/cli.py", "src/myproject/config.py"]
+# required_any = ["README.md", "docs/CLI.md"]
+
+[security]
+tracked_secret_allowlist = [".env.example"]
+'''
+
+DEFAULT_CONFIG = '''# MaintainerLint configuration
+version = 1
+
+# Each stage runs in order. MaintainerLint keeps full sanitized logs locally and
+# prints only concise PASS/FAIL output unless a stage fails.
+[[stages]]
+name = "tests"
+command = ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
+timeout = 300
+
+[[stages]]
+name = "diff"
+command = ["git", "diff", "--check"]
+timeout = 60
+
+''' + _CONFIG_TAIL
+
+
+def _toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def render_detected_config(proposals: tuple[StageProposal, ...]) -> str:
+    if not proposals:
+        return DEFAULT_CONFIG
+
+    lines = [
+        "# MaintainerLint configuration",
+        "version = 1",
+        "",
+        "# Detected stages are conservative proposals derived from repository files.",
+        "# Review these commands before committing this policy.",
+    ]
+    for proposal in proposals:
+        lines.extend(
+            [
+                "",
+                f"# detected from {proposal.reason}",
+                "[[stages]]",
+                f"name = {_toml_string(proposal.name)}",
+                "command = [" + ", ".join(_toml_string(item) for item in proposal.command) + "]",
+                "timeout = 300",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "[[stages]]",
+            'name = "diff"',
+            'command = ["git", "diff", "--check"]',
+            "timeout = 60",
+            "",
+        ]
+    )
+    return "\n".join(lines) + _CONFIG_TAIL
+
+
+PR_TEMPLATE = '''## Scope
+
+<!-- What does this PR change, and what is explicitly out of scope? -->
+
+## Verification
+
+- [ ] Targeted tests passed
+- [ ] `maintainerlint check` passed
+- [ ] `git diff --check` passed
+
+## Documentation impact
+
+- [ ] No documentation impact
+- [ ] Current-state / architecture docs
+- [ ] API / contract docs
+- [ ] User docs
+- [ ] Design / decision lifecycle docs
+
+**Documentation drift review:** Does this PR make code/config/tests disagree with current-truth documentation?
+
+## Human verification
+
+<!-- List any real-environment checks that should remain human-owned. -->
+'''

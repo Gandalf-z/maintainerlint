@@ -123,13 +123,23 @@ maintainerlint scope \
 
 In strict mode, an unexpected changed path exits non-zero and is listed explicitly. Renames check both the old and new path, deletions check the deleted path, and copies check the destination path.
 
-### 5. Safe starter setup
+### 5. Safe starter setup and brownfield detection
+
+The unchanged starter remains deliberately generic:
 
 ```bash
 maintainerlint init --pr-template
 ```
 
-This creates a minimal `maintainerlint.toml` and an optional PR template that asks for scope, verification, documentation impact, documentation-drift review, and human verification.
+For an existing repository, explicitly opt into conservative check detection:
+
+```bash
+maintainerlint init --detect --pr-template
+```
+
+`--detect` only reads repository files. It does not run package managers, install dependencies, call an LLM, or access the network. Before writing policy it prints every detected signal and proposed command. Automatic adoption happens only when exactly one supported ecosystem has high-confidence evidence; empty, metadata-only, or multi-ecosystem repositories fall back to the generic starter rather than guessing.
+
+Current high-confidence signals include pytest/tox configuration for Python, recognized `package.json` scripts for Node, `Cargo.toml` for Rust, and `go.mod` for Go. An existing `maintainerlint.toml` is never overwritten unless `--force` is explicitly supplied.
 
 ## Install from source
 

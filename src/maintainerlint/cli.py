@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import shlex
 import sys
 
 from . import __version__
 from .config import ConfigError, load_config
+from .detect import DetectionResult, detect_stages
 from .doctor import environment_findings, suspicious_tracked_files
 from .gitutils import GitError, changed_entries, changed_files, repo_root, tracked_files
 from .impact import build_report, render_report
 from .runner import StageExecutionError, run_stage
 from .scope import evaluate_scope
-from .templates import DEFAULT_CONFIG, PR_TEMPLATE
+from .templates import DEFAULT_CONFIG, PR_TEMPLATE, render_detected_config
 
 
 def _resolve_repo(path: str | None) -> Path:
@@ -24,6 +26,19 @@ def _config_path(repo: Path, value: str) -> Path:
     return path if path.is_absolute() else repo / path
 
 
+def _print_detection(result: DetectionResult) -> None:
+    if result.signals:
+        for signal in result.signals:
+            print(f"DETECT {signal}")
+    else:
+        print("DETECT no supported repository signals")
+    for proposal in result.proposals:
+        print(
+            f"PROPOSE {proposal.ecosystem}/{proposal.name}: "
+            f"{shlex.join(proposal.command)} ({proposal.reason})"
+        )
+
+
 def command_init(args: argparse.Namespace) -> int:
     target = Path(args.directory).resolve()
     target.mkdir(parents=True, exist_ok=True)
@@ -31,7 +46,16 @@ def command_init(args: argparse.Namespace) -> int:
     if config.exists() and not args.force:
         print(f"SKIP {config.name} already exists (use --force to replace)")
     else:
-        config.write_text(DEFAULT_CONFIG, encoding="utf-8")
+        config_text = DEFAULT_CONFIG
+        if getattr(args, "detect", False):
+            detection = detect_stages(target)
+            _print_detection(detection)
+            if detection.usable:
+                config_text = render_detected_config(detection.proposals)
+                print(f"USE detected {detection.ecosystems[0]} stages")
+            else:
+                print(f"FALLBACK generic starter: {detection.fallback_reason}")
+        config.write_text(config_text, encoding="utf-8")
         print(f"CREATE {config}")
 
     if args.pr_template:
@@ -148,6 +172,11 @@ def build_parser() -> argparse.ArgumentParser:
     init = sub.add_parser("init", help="create a starter MaintainerLint config")
     init.add_argument("directory", nargs="?", default=".")
     init.add_argument("--force", action="store_true")
+    init.add_argument(
+        "--detect",
+        action="store_true",
+        help="propose conservative stages from repository files before creating policy",
+    )
     init.add_argument("--pr-template", action="store_true", help="also create a concise PR template")
     init.set_defaults(func=command_init)
 

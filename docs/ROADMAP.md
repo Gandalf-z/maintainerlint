@@ -13,7 +13,7 @@ MaintainerLint is intentionally shipping in small, testable layers.
 
 ## v0.2 — better repository adoption
 
-- [ ] `maintainerlint init` detects common Python/Node/Rust/Go checks without overwriting existing config;
+- [x] `maintainerlint init --detect` conservatively detects common Python/Node/Rust/Go checks without overwriting existing config;
 - [ ] richer glob semantics and rule diagnostics;
 - [x] Markdown documentation-impact output for PR/check summaries;
 - [ ] explicit generated-file consistency stage helpers;

@@ -10,6 +10,27 @@ version = 1
 
 Only version `1` is currently accepted.
 
+## Initializer detection
+
+`maintainerlint init` keeps the original generic starter behavior. Brownfield detection is explicit:
+
+```bash
+maintainerlint init --detect
+```
+
+Detection is local and read-only. It never installs packages, runs package-manager commands, calls an LLM, or uses the network. Signals and proposed commands are printed before the policy file is written.
+
+Current conservative rules:
+
+- Python: `tox.ini` proposes `python -m tox`; `pytest.ini` or `[tool.pytest.ini_options]` proposes `python -m pytest -q`;
+- Node: recognized `package.json` scripts (`test`, `lint`, `typecheck`, `build`) are proposed through the declared `packageManager` when it is `npm`, `pnpm`, or `yarn`, otherwise `npm`; the default `no test specified` placeholder is ignored;
+- Rust: `Cargo.toml` proposes `cargo test`;
+- Go: `go.mod` proposes `go test ./...`.
+
+Automatic adoption requires exactly one supported ecosystem and at least one high-confidence proposal. Empty repositories, metadata-only signals, malformed metadata, or multiple supported ecosystems fall back to the generic starter rather than guessing.
+
+An existing `maintainerlint.toml` is not overwritten unless `--force` is explicitly supplied. `--force` permits replacement; it does not make ambiguous detection acceptable, so ambiguous repositories still receive the generic starter.
+
 ## Verification stages
 
 ```toml
