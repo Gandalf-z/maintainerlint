@@ -11,3 +11,10 @@ class DoctorTests(unittest.TestCase):
     def test_allows_examples(self):
         risky = suspicious_tracked_files((".env.example",), ())
         self.assertEqual(risky, ())
+
+    def test_normalizes_windows_originated_tracked_paths(self):
+        risky = suspicious_tracked_files(
+            (r"ops\credentials.json", r"keys\id_ed25519", r"docs\readme.md", r".\secrets.json"),
+            (),
+        )
+        self.assertEqual(risky, ("ops/credentials.json", "keys/id_ed25519", "secrets.json"))

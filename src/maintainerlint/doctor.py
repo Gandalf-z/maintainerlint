@@ -33,7 +33,7 @@ _SAFE_EXAMPLES = (".env.example", ".env.sample", ".env.template")
 def suspicious_tracked_files(paths: tuple[str, ...], allowlist: tuple[str, ...]) -> tuple[str, ...]:
     findings: list[str] = []
     for path in paths:
-        normalized = PurePosixPath(path).as_posix()
+        normalized = PurePosixPath(path.replace("\\", "/")).as_posix()
         if normalized in _SAFE_EXAMPLES or any(fnmatch(normalized, pattern) for pattern in allowlist):
             continue
         if any(fnmatch(normalized, pattern) for pattern in _HIGH_RISK_PATTERNS):
