@@ -69,4 +69,4 @@ Only use this for deliberately fake fixtures that match a high-risk filename pat
 .maintainerlint/logs/
 ```
 
-Add `.maintainerlint/` to `.gitignore`. On POSIX systems MaintainerLint attempts to create the directory with mode `0700` and log files with mode `0600`.
+Add `.maintainerlint/` to `.gitignore`. On POSIX systems MaintainerLint attempts to create the directory with mode `0700` and log files with mode `0600`. On Windows those POSIX mode guarantees do not apply: MaintainerLint leaves NTFS ACL management to the host and the files inherit the working tree directory permissions.
