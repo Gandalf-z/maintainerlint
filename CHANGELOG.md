@@ -4,7 +4,10 @@
 
 - add a deterministic changed-file scope guard with repeatable primary/support allow patterns;
 - fail strict scope checks when modified, deleted, or renamed paths escape the declared boundary;
-- preserve documentation-impact checks as an independent gate even when docs/changelog are scope-allowed.
+- preserve documentation-impact checks as an independent gate even when docs/changelog are scope-allowed;
+- add Markdown documentation-impact output suitable for PR comments and check summaries;
+- add a versioned `maintainerlint.impact` JSON contract with stable v1 fields for tool/agent integrations;
+- keep text, Markdown, and JSON output on one shared impact result model with identical strict-exit semantics.
 
 ## 0.1.0 — 2026-09-06
 

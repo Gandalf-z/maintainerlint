@@ -8,7 +8,7 @@ from . import __version__
 from .config import ConfigError, load_config
 from .doctor import environment_findings, suspicious_tracked_files
 from .gitutils import GitError, changed_entries, changed_files, repo_root, tracked_files
-from .impact import evaluate_rules
+from .impact import build_report, render_report
 from .runner import StageExecutionError, run_stage
 from .scope import evaluate_scope
 from .templates import DEFAULT_CONFIG, PR_TEMPLATE
@@ -82,37 +82,9 @@ def command_impact(args: argparse.Namespace) -> int:
     if not changed:
         changed = changed_files(repo, args.base, args.head)
 
-    results = evaluate_rules(changed, config.doc_rules)
-    if args.format == "json":
-        import json
-
-        print(json.dumps({
-            "changed": changed,
-            "rules": [
-                {
-                    "name": result.name,
-                    "triggered_by": result.triggered_by,
-                    "satisfied": result.satisfied,
-                    "missing_any": result.missing_any,
-                    "missing_all": result.missing_all,
-                }
-                for result in results
-            ],
-        }, indent=2))
-    else:
-        if not results:
-            print("PASS documentation impact: no configured rules triggered")
-        for result in results:
-            label = "PASS" if result.satisfied else "FAIL"
-            print(f"{label} documentation impact: {result.name}")
-            print("  triggered by: " + ", ".join(result.triggered_by))
-            if result.missing_any:
-                print("  require at least one: " + ", ".join(result.missing_any))
-            if result.missing_all:
-                print("  require all: " + ", ".join(result.missing_all))
-
-    unsatisfied = any(not result.satisfied for result in results)
-    return 1 if args.strict and unsatisfied else 0
+    report = build_report(changed, config.doc_rules)
+    print(render_report(report, args.format))
+    return 1 if args.strict and not report.satisfied else 0
 
 
 def command_scope(args: argparse.Namespace) -> int:
@@ -192,7 +164,7 @@ def build_parser() -> argparse.ArgumentParser:
     impact.add_argument("--head", default="HEAD")
     impact.add_argument("--changed", action="append", help="explicit changed path; bypasses git diff")
     impact.add_argument("--strict", action="store_true", help="exit non-zero when a rule is unsatisfied")
-    impact.add_argument("--format", choices=("text", "json"), default="text")
+    impact.add_argument("--format", choices=("text", "markdown", "json"), default="text")
     impact.set_defaults(func=command_impact)
 
     scope = sub.add_parser("scope", help="check that a Git diff stayed inside declared path boundaries")

@@ -52,6 +52,54 @@ When any changed path matches `patterns`:
 
 Rules are intentionally exact and project-defined. MaintainerLint does not use an LLM to guess documentation impact.
 
+## Documentation-impact output formats
+
+The `impact` command evaluates rules once and can render the same result three ways:
+
+```bash
+maintainerlint impact --strict --format text
+maintainerlint impact --strict --format markdown
+maintainerlint impact --strict --format json
+```
+
+`text` is the concise terminal default. `markdown` is suitable for a PR comment or check summary. `json` is intended for agents and other tooling. Output format never changes rule semantics or `--strict` exit behavior.
+
+### JSON contract
+
+JSON output uses an explicitly versioned top-level contract:
+
+```json
+{
+  "schema": "maintainerlint.impact",
+  "schema_version": 1,
+  "status": "pass",
+  "changed": ["src/acme/api/client.py", "docs/API.md"],
+  "summary": {
+    "triggered_rules": 1,
+    "failed_rules": 0
+  },
+  "rules": [
+    {
+      "name": "public API contract",
+      "status": "pass",
+      "satisfied": true,
+      "triggered_by": ["src/acme/api/client.py"],
+      "missing_any": [],
+      "missing_all": []
+    }
+  ]
+}
+```
+
+Compatibility policy for `schema_version = 1`:
+
+- existing fields keep their meaning and type;
+- breaking removals, renames, or semantic changes require a new schema version;
+- consumers should ignore unknown additional fields so compatible metadata can be added later;
+- `rules` contains only triggered rules; a no-trigger result has `status = "pass"`, zero summary counts, and an empty `rules` array.
+
+This schema is a reporting contract only. It does not add network access or GitHub authentication to the runtime.
+
 ## Security allowlist
 
 ```toml
