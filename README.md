@@ -83,6 +83,15 @@ maintainerlint impact --base origin/main --head HEAD --strict
 
 If the CLI changes without either document changing, CI fails with an actionable explanation.
 
+The exact same documentation-impact result can also be rendered for a PR or another tool:
+
+```bash
+maintainerlint impact --base origin/main --head HEAD --strict --format markdown
+maintainerlint impact --base origin/main --head HEAD --strict --format json
+```
+
+`markdown` produces a PR/check-summary-friendly report. `json` uses the stable `maintainerlint.impact` schema with explicit `schema_version = 1`. Text, Markdown, and JSON all render one shared result model, so changing output format never changes `--strict` semantics. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the JSON field contract.
+
 ### 3. Maintainer safety checks
 
 ```bash

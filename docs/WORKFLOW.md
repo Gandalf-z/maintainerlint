@@ -110,6 +110,25 @@ Long-lived projects often have multiple documents describing the same system. Ma
 
 Do not require a changelog update for every internal bug fix. Configure rules only where stale documentation would materially mislead maintainers or users.
 
+## PR-readable and machine-readable evidence
+
+Documentation-impact rules are evaluated once into one report. Choose the rendering that fits the next consumer:
+
+```bash
+# concise terminal output
+maintainerlint impact --base origin/main --head HEAD --strict
+
+# paste into a PR comment or check summary
+maintainerlint impact --base origin/main --head HEAD --strict --format markdown
+
+# feed deterministic evidence to another tool or agent
+maintainerlint impact --base origin/main --head HEAD --strict --format json
+```
+
+Markdown and JSON do not perform new analysis. They render the exact same rule result used by text output, and `--strict` keeps the same exit status in every format. MaintainerLint intentionally does not post the Markdown to GitHub itself; CI, a maintainer, or another integration can decide where that evidence belongs.
+
+For JSON consumers, use the explicit `schema` and `schema_version` fields rather than inferring a contract from presentation. See `docs/CONFIGURATION.md` for the v1 field contract and compatibility policy.
+
 ## Failure semantics
 
 MaintainerLint prefers explicit failure states over optimistic guesses:

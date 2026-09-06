@@ -15,7 +15,7 @@ MaintainerLint is intentionally shipping in small, testable layers.
 
 - [ ] `maintainerlint init` detects common Python/Node/Rust/Go checks without overwriting existing config;
 - [ ] richer glob semantics and rule diagnostics;
-- [ ] `maintainerlint impact --markdown` for PR comments;
+- [x] Markdown documentation-impact output for PR/check summaries;
 - [ ] explicit generated-file consistency stage helpers;
 - [x] Windows path/redaction fixtures and CI coverage;
 - [ ] examples for Python, Node, and mixed repositories.
@@ -25,7 +25,7 @@ MaintainerLint is intentionally shipping in small, testable layers.
 - [ ] optional GitHub PR check summary;
 - [ ] issue-to-implementation-packet schema;
 - [x] bounded changed-file scope guard;
-- [ ] machine-readable JSON result schema for agent integrations;
+- [x] versioned machine-readable documentation-impact JSON schema for agent integrations;
 - [ ] release checklist gate.
 
 ## Non-goals
