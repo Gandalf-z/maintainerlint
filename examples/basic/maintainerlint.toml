@@ -1,0 +1,18 @@
+version = 1
+
+[[stages]]
+name = "tests"
+command = ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
+
+[[stages]]
+name = "diff"
+command = ["git", "diff", "--check"]
+
+[docs]
+[[docs.rules]]
+name = "public CLI"
+patterns = ["src/acme/cli.py"]
+required_any = ["README.md", "docs/CLI.md"]
+
+[security]
+tracked_secret_allowlist = [".env.example"]
