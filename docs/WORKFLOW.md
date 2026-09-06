@@ -39,6 +39,7 @@ MaintainerLint lives here. It does not judge product intent. It checks repositor
 
 - configured test/build/lint commands;
 - `git diff --check` or other hygiene stages;
+- changed-file scope boundaries declared by the maintainer;
 - sanitized failure output;
 - configured documentation-impact rules;
 - high-confidence tracked-secret risks.
@@ -76,6 +77,33 @@ Stop condition
 
 This structure reduces exploratory token use and keeps the implementation auditable.
 
+## Changed-file scope guard
+
+For tasks with a known file boundary, encode that boundary in the final verification step:
+
+```bash
+maintainerlint scope \
+  --base origin/main \
+  --head HEAD \
+  --allow "src/feature/**" \
+  --allow "tests/feature/**" \
+  --allow-support "docs/**" \
+  --allow-support "CHANGELOG.md" \
+  --strict
+```
+
+Use `--allow` for the primary implementation area. Use `--allow-support` for supporting artifacts that are expected to change alongside the implementation. Supporting paths are still evaluated independently by documentation-impact rules; scope permission is not documentation permission.
+
+The guard is intentionally structural rather than semantic:
+
+- modified/added/deleted paths must be inside the declared boundary;
+- renames require both the old and new path to be allowed;
+- copies require the destination path to be allowed because the source is not modified;
+- an empty diff passes;
+- `--strict` turns escaped paths into a non-zero exit status.
+
+Do not use the scope guard when the task is genuinely exploratory or when the expected path boundary cannot be stated honestly. A fake broad allowlist is worse than omitting the guard and documenting why.
+
 ## Current truth and documentation drift
 
 Long-lived projects often have multiple documents describing the same system. MaintainerLint recommends identifying a small set of current-truth documents, then using `docs.rules` to force reconsideration when contracts change.
@@ -87,6 +115,7 @@ Do not require a changelog update for every internal bug fix. Configure rules on
 MaintainerLint prefers explicit failure states over optimistic guesses:
 
 - a failed check stays failed;
+- an escaped changed path stays escaped;
 - a missing required document change stays missing;
 - suspicious tracked secret material is not silently ignored;
 - a command timeout is surfaced as a failure;
