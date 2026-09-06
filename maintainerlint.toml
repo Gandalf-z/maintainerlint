@@ -1,0 +1,31 @@
+version = 1
+
+[[stages]]
+name = "unit-tests"
+command = ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
+timeout = 180
+
+[[stages]]
+name = "compile"
+command = ["python", "-m", "compileall", "-q", "src", "tests"]
+timeout = 60
+
+[[stages]]
+name = "diff"
+command = ["git", "diff", "--check"]
+timeout = 60
+
+[docs]
+
+[[docs.rules]]
+name = "public CLI/config contract"
+patterns = ["src/maintainerlint/cli.py", "src/maintainerlint/config.py", "src/maintainerlint/templates.py"]
+required_any = ["README.md", "docs/CONFIGURATION.md", "docs/WORKFLOW.md"]
+
+[[docs.rules]]
+name = "security behavior"
+patterns = ["src/maintainerlint/redact.py", "src/maintainerlint/doctor.py"]
+required_any = ["SECURITY.md", "docs/CONFIGURATION.md"]
+
+[security]
+tracked_secret_allowlist = [".env.example", ".env.sample", ".env.template"]

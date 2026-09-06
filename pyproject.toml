@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maintainerlint"
+version = "0.1.0"
+description = "Deterministic guardrails for AI-assisted software maintenance"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "Gandalf-z"}]
+keywords = ["ai", "agents", "maintenance", "oss", "ci", "documentation", "guardrails"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.scripts]
+maintainerlint = "maintainerlint.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Gandalf-z/maintainerlint"
+Issues = "https://github.com/Gandalf-z/maintainerlint/issues"
