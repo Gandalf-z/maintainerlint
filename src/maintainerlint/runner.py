@@ -79,7 +79,9 @@ def run_stage(stage: Stage, *, repo: Path, log_root: Path) -> StageResult:
 
     duration = time.monotonic() - started
     sanitized = redact(raw, repo=repo)
-    stamp = time.strftime("%Y%m%d-%H%M%S")
+    wall_ns = time.time_ns()
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(wall_ns // 1_000_000_000))
+    stamp = f"{stamp}-{wall_ns % 1_000_000_000:09d}"
     safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in stage.name)
     log_path = log_root / f"{stamp}-{safe_name}.log"
     _write_private(log_path, sanitized)

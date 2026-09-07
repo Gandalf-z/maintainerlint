@@ -6,7 +6,12 @@
 - add `maintainerlint init --detect --dry-run` to print the exact proposed TOML and planned file writes without creating files or directories, even with `--force`;
 - add `check --state-dir` and `check --log-dir` so MaintainerLint-owned logs/state can live outside the target repository;
 - keep external absolute `--config` paths compatible with shadow checks and render external failure-log paths without assuming repository-relative storage;
-- document the exact **MaintainerLint-owned zero-write** boundary: configured repository commands may still write files when `check` executes them.
+- document the exact **MaintainerLint-owned zero-write** boundary: configured repository commands may still write files when `check` executes them;
+- add versioned Task Contract v1 TOML for `base`, `head`, primary/support scope, and optional targeted check stages;
+- add `maintainerlint scope --task ... --strict` while preserving explicit CLI scope arguments and rejecting mixed boundary sources;
+- add `maintainerlint verify` as the final agent verification command, composing existing scope, targeted/full checks, documentation impact, and safety doctor gates;
+- add versioned `maintainerlint.verify` JSON schema v1 plus concise `PASS/FAIL scope/checks/docs/safety` text output;
+- make repeated executions of the same check stage produce unique log files so targeted + full verification evidence cannot overwrite itself.
 
 ## 0.2.0 — 2026-09-06
 

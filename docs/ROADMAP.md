@@ -26,7 +26,9 @@ MaintainerLint is intentionally shipping in small, testable layers.
 ## v0.3 — maintainer automation
 
 - [ ] optional GitHub PR check summary;
-- [ ] issue-to-implementation-packet schema;
+- [x] Task Contract v1 for bounded task scope, supporting files, refs, and optional targeted stages;
+- [x] unified `maintainerlint verify` orchestration with versioned machine-readable result output;
+- [ ] expand Task Contract into the richer issue-to-implementation-packet schema (goal, constraints, human acceptance, stop conditions);
 - [x] bounded changed-file scope guard;
 - [x] versioned machine-readable documentation-impact JSON schema for agent integrations;
 - [ ] release checklist gate.
