@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import redirect_stdout
+from io import StringIO
+import json
 from pathlib import Path
 import shlex
 import sys
@@ -13,7 +16,12 @@ from .gitutils import GitError, changed_entries, changed_files, repo_root, track
 from .impact import build_report, render_report
 from .runner import StageExecutionError, run_stage
 from .scope import evaluate_scope
+from .task import TaskContract, TaskError, load_task
 from .templates import DEFAULT_CONFIG, PR_TEMPLATE, render_detected_config
+
+
+VERIFY_SCHEMA = "maintainerlint.verify"
+VERIFY_SCHEMA_VERSION = 1
 
 
 def _resolve_repo(path: str | None) -> Path:
@@ -22,6 +30,11 @@ def _resolve_repo(path: str | None) -> Path:
 
 
 def _config_path(repo: Path, value: str) -> Path:
+    path = Path(value).expanduser()
+    return path.resolve() if path.is_absolute() else (repo / path).resolve()
+
+
+def _task_path(repo: Path, value: str) -> Path:
     path = Path(value).expanduser()
     return path.resolve() if path.is_absolute() else (repo / path).resolve()
 
@@ -136,6 +149,14 @@ def command_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _log_root(repo: Path, *, state_dir: str | None, log_dir: str | None) -> Path:
+    if log_dir:
+        return _external_path(log_dir)
+    if state_dir:
+        return _external_path(state_dir) / "logs"
+    return repo / ".maintainerlint" / "logs"
+
+
 def command_check(args: argparse.Namespace) -> int:
     repo = _resolve_repo(args.repo)
     config = load_config(_config_path(repo, args.config))
@@ -149,12 +170,11 @@ def command_check(args: argparse.Namespace) -> int:
         print("SKIP no stages configured")
         return 0
 
-    if args.log_dir:
-        log_root = _external_path(args.log_dir)
-    elif args.state_dir:
-        log_root = _external_path(args.state_dir) / "logs"
-    else:
-        log_root = repo / ".maintainerlint" / "logs"
+    log_root = _log_root(
+        repo,
+        state_dir=getattr(args, "state_dir", None),
+        log_dir=getattr(args, "log_dir", None),
+    )
 
     failed = False
     for stage in stages:
@@ -184,14 +204,43 @@ def command_impact(args: argparse.Namespace) -> int:
     return 1 if args.strict and not report.satisfied else 0
 
 
+def _scope_contract(args: argparse.Namespace, repo: Path) -> TaskContract:
+    task_value = getattr(args, "task", None)
+    if task_value:
+        conflicting = []
+        if getattr(args, "base", None) is not None:
+            conflicting.append("--base")
+        if getattr(args, "head", None) is not None:
+            conflicting.append("--head")
+        if getattr(args, "allow", None):
+            conflicting.append("--allow")
+        if getattr(args, "allow_support", None):
+            conflicting.append("--allow-support")
+        if conflicting:
+            raise TaskError(
+                "--task cannot be combined with scope boundary arguments: "
+                + ", ".join(conflicting)
+            )
+        return load_task(_task_path(repo, task_value))
+
+    allow = tuple(getattr(args, "allow", None) or ())
+    if not allow:
+        raise TaskError("scope requires --allow or --task")
+    return TaskContract(
+        version=1,
+        base=getattr(args, "base", None) or "HEAD~1",
+        head=getattr(args, "head", None) or "HEAD",
+        allow=allow,
+        support=tuple(getattr(args, "allow_support", None) or ()),
+        targeted_stages=(),
+    )
+
+
 def command_scope(args: argparse.Namespace) -> int:
     repo = _resolve_repo(args.repo)
-    changes = changed_entries(repo, args.base, args.head)
-    result = evaluate_scope(
-        changes,
-        tuple(args.allow),
-        tuple(args.allow_support or ()),
-    )
+    contract = _scope_contract(args, repo)
+    changes = changed_entries(repo, contract.base, contract.head)
+    result = evaluate_scope(changes, contract.allow, contract.support)
 
     if not changes:
         print("PASS scope: no changed files")
@@ -200,7 +249,7 @@ def command_scope(args: argparse.Namespace) -> int:
     if result.satisfied:
         print(
             f"PASS scope: {len(changes)} change(s) stayed within "
-            f"{len(args.allow)} primary and {len(args.allow_support or ())} support pattern(s)"
+            f"{len(contract.allow)} primary and {len(contract.support)} support pattern(s)"
         )
         return 0
 
@@ -233,6 +282,135 @@ def command_doctor(args: argparse.Namespace) -> int:
         print("PASS no high-confidence secret-like tracked files found")
     print(f"PASS config loaded: {_display_path(config_path, repo)}")
     return 1 if failed else 0
+
+
+def _capture_command(func, args: argparse.Namespace) -> tuple[int, str]:
+    stream = StringIO()
+    try:
+        with redirect_stdout(stream):
+            code = int(func(args))
+        return code, stream.getvalue().rstrip()
+    except (ConfigError, GitError, StageExecutionError, TaskError) as exc:
+        output = stream.getvalue().rstrip()
+        error = f"ERROR {exc}"
+        return 2, f"{output}\n{error}".strip()
+
+
+def _section_status(code: int) -> str:
+    return "pass" if code == 0 else "fail"
+
+
+def command_verify(args: argparse.Namespace) -> int:
+    repo = _resolve_repo(args.repo)
+    task_path = _task_path(repo, args.task)
+    contract = load_task(task_path)
+
+    scope_code, scope_output = _capture_command(
+        command_scope,
+        argparse.Namespace(
+            repo=str(repo),
+            task=str(task_path),
+            base=None,
+            head=None,
+            allow=None,
+            allow_support=None,
+            strict=True,
+        ),
+    )
+
+    check_outputs: list[str] = []
+    check_codes: list[int] = []
+    if contract.targeted_stages:
+        targeted_code, targeted_output = _capture_command(
+            command_check,
+            argparse.Namespace(
+                repo=str(repo),
+                config=args.config,
+                stage=list(contract.targeted_stages),
+                state_dir=args.state_dir,
+                log_dir=args.log_dir,
+            ),
+        )
+        check_codes.append(targeted_code)
+        if targeted_output:
+            check_outputs.append("TARGETED\n" + targeted_output)
+
+    full_check_code, full_check_output = _capture_command(
+        command_check,
+        argparse.Namespace(
+            repo=str(repo),
+            config=args.config,
+            stage=None,
+            state_dir=args.state_dir,
+            log_dir=args.log_dir,
+        ),
+    )
+    check_codes.append(full_check_code)
+    if full_check_output:
+        check_outputs.append("FULL\n" + full_check_output)
+    checks_code = max(check_codes, default=0)
+    checks_output = "\n".join(check_outputs)
+
+    docs_code, docs_output = _capture_command(
+        command_impact,
+        argparse.Namespace(
+            repo=str(repo),
+            config=args.config,
+            base=contract.base,
+            head=contract.head,
+            changed=None,
+            strict=True,
+            format="text",
+        ),
+    )
+
+    safety_code, safety_output = _capture_command(
+        command_doctor,
+        argparse.Namespace(repo=str(repo), config=args.config),
+    )
+
+    sections = {
+        "scope": {"status": _section_status(scope_code), "output": scope_output},
+        "checks": {
+            "status": _section_status(checks_code),
+            "targeted_stages": list(contract.targeted_stages),
+            "output": checks_output,
+        },
+        "docs": {"status": _section_status(docs_code), "output": docs_output},
+        "safety": {"status": _section_status(safety_code), "output": safety_output},
+    }
+    overall = "pass" if all(section["status"] == "pass" for section in sections.values()) else "fail"
+
+    if args.format == "json":
+        print(
+            json.dumps(
+                {
+                    "schema": VERIFY_SCHEMA,
+                    "schema_version": VERIFY_SCHEMA_VERSION,
+                    "status": overall,
+                    "task": {
+                        "path": _display_path(task_path, repo),
+                        "version": contract.version,
+                        "base": contract.base,
+                        "head": contract.head,
+                        "allow": list(contract.allow),
+                        "support": list(contract.support),
+                        "targeted_stages": list(contract.targeted_stages),
+                    },
+                    "sections": sections,
+                },
+                indent=2,
+            )
+        )
+    else:
+        for name, section in sections.items():
+            if section["status"] == "fail" and section.get("output"):
+                print(f"DETAIL {name}")
+                print(section["output"])
+        for name, section in sections.items():
+            print(f"{section['status'].upper()} {name}")
+
+    return 0 if overall == "pass" else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -289,14 +467,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     scope = sub.add_parser("scope", help="check that a Git diff stayed inside declared path boundaries")
     scope.add_argument("--repo")
-    scope.add_argument("--base", default="HEAD~1")
-    scope.add_argument("--head", default="HEAD")
-    scope.add_argument(
-        "--allow",
-        action="append",
-        required=True,
-        help="allowed primary path glob; repeatable",
-    )
+    scope.add_argument("--task", help="task contract TOML; cannot be mixed with CLI scope boundaries")
+    scope.add_argument("--base")
+    scope.add_argument("--head")
+    scope.add_argument("--allow", action="append", help="allowed primary path glob; repeatable")
     scope.add_argument(
         "--allow-support",
         action="append",
@@ -304,6 +478,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scope.add_argument("--strict", action="store_true", help="exit non-zero when any path escapes")
     scope.set_defaults(func=command_scope)
+
+    verify = sub.add_parser(
+        "verify",
+        help="run the final agent verification pipeline from a task contract",
+    )
+    verify.add_argument("--repo")
+    verify.add_argument("--task", required=True)
+    verify.add_argument("--config", default="maintainerlint.toml")
+    verify.add_argument("--state-dir")
+    verify.add_argument("--log-dir")
+    verify.add_argument("--format", choices=("text", "json"), default="text")
+    verify.set_defaults(func=command_verify)
 
     doctor = sub.add_parser("doctor", help="check repo/config prerequisites and tracked-secret risks")
     doctor.add_argument("--repo")
@@ -317,7 +503,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return int(args.func(args))
-    except (ConfigError, GitError, StageExecutionError) as exc:
+    except (ConfigError, GitError, StageExecutionError, TaskError) as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 2
 
