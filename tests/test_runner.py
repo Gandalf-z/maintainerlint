@@ -17,6 +17,18 @@ class RunnerTests(unittest.TestCase):
             self.assertNotIn("supersecret", content)
             self.assertIn("<REDACTED>", content)
 
+    def test_repeated_same_stage_does_not_overwrite_logs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp).resolve()
+            log_root = repo / ".maintainerlint" / "logs"
+            stage = Stage("tests", ("python", "-c", "print('ok')"))
+            first = run_stage(stage, repo=repo, log_root=log_root)
+            second = run_stage(stage, repo=repo, log_root=log_root)
+            self.assertNotEqual(first.log_path, second.log_path)
+            self.assertTrue(first.log_path.exists())
+            self.assertTrue(second.log_path.exists())
+            self.assertEqual(len(list(log_root.glob("*.log"))), 2)
+
     def test_windows_style_crlf_output_is_sanitized(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp).resolve()
