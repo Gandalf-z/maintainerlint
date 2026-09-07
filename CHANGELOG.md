@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-No unreleased changes yet.
+- add `maintainerlint inspect --repo ...` as a zero-write repository inspection path that renders detection, proposed policy, and adoption writes without executing checks;
+- add `maintainerlint init --detect --dry-run` to print the exact proposed TOML and planned file writes without creating files or directories, even with `--force`;
+- add `check --state-dir` and `check --log-dir` so MaintainerLint-owned logs/state can live outside the target repository;
+- keep external absolute `--config` paths compatible with shadow checks and render external failure-log paths without assuming repository-relative storage;
+- document the exact **MaintainerLint-owned zero-write** boundary: configured repository commands may still write files when `check` executes them.
 
 ## 0.2.0 — 2026-09-06
 
