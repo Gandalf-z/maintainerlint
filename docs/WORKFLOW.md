@@ -58,6 +58,38 @@ Some checks are intentionally not automated:
 
 A green CI run is evidence, not a substitute for maintainer responsibility.
 
+## Shadow-first adoption
+
+A maintainer should be able to understand what MaintainerLint wants to do before allowing it to write into an existing repository.
+
+Start with:
+
+```bash
+maintainerlint inspect --repo /path/to/project
+```
+
+This is a read-only MaintainerLint operation: it detects supported ecosystem signals, prints proposed commands and policy, and explains what `init --detect` would create. It does not execute the proposed repository commands.
+
+The initializer can be previewed independently:
+
+```bash
+cd /path/to/project
+maintainerlint init --detect --dry-run
+```
+
+Only after the maintainer accepts the proposal should formal adoption create `maintainerlint.toml` or an optional PR template.
+
+For a shadow `check`, keep MaintainerLint-owned logs outside the repository:
+
+```bash
+maintainerlint check \
+  --repo /path/to/project \
+  --config /tmp/project.toml \
+  --state-dir ~/.cache/maintainerlint/project
+```
+
+This boundary is intentionally precise. MaintainerLint can make its **own** state/log writes external; the configured test/build/lint commands are still real repository commands and may write generated files. Treat those commands as executable policy and review them before running `check`.
+
 ## A compact implementation packet
 
 A good agent packet should contain only what execution needs:

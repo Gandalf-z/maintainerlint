@@ -10,6 +10,26 @@ version = 1
 
 Only version `1` is currently accepted.
 
+## Zero-write inspection and initializer preview
+
+For the lowest-risk first look at an existing repository:
+
+```bash
+maintainerlint inspect --repo /path/to/project
+```
+
+`inspect` performs conservative ecosystem detection, prints proposed commands, renders the exact policy MaintainerLint would suggest, and lists what formal adoption would create. It does not create or modify repository files, execute proposed commands, install dependencies, call an LLM, or access the network.
+
+The initializer has an equivalent preview mode:
+
+```bash
+maintainerlint init --detect --dry-run
+```
+
+`--dry-run` prints planned writes and the exact proposed `maintainerlint.toml`, but creates no files or directories. If `--pr-template` is also supplied, the optional PR template path is reported but not created. `--force` never writes while `--dry-run` is active.
+
+This guarantee is specifically **MaintainerLint-owned zero-write**. It describes files and state created by MaintainerLint itself; it does not imply that arbitrary repository commands later run by `maintainerlint check` are non-writing.
+
 ## Initializer detection
 
 `maintainerlint init` keeps the original generic starter behavior. Brownfield detection is explicit:
@@ -31,6 +51,26 @@ Automatic adoption requires exactly one supported ecosystem and at least one hig
 
 An existing `maintainerlint.toml` is not overwritten unless `--force` is explicitly supplied. `--force` permits replacement; it does not make ambiguous detection acceptable, so ambiguous repositories still receive the generic starter.
 
+## External configuration and MaintainerLint-owned state
+
+`--config` accepts either a repository-relative path or an absolute path outside the target repository:
+
+```bash
+maintainerlint check \
+  --repo /path/to/project \
+  --config /tmp/project.toml \
+  --state-dir ~/.cache/maintainerlint/project
+```
+
+For `check`:
+
+- default MaintainerLint-owned logs live in `<repo>/.maintainerlint/logs/`;
+- `--state-dir DIR` places logs under `DIR/logs/`;
+- `--log-dir DIR` places logs directly in `DIR` and wins over `--state-dir` for log placement;
+- `~` is expanded and external state/log paths are resolved from the invocation environment rather than the repository root.
+
+Using an external config plus external state/log paths lets MaintainerLint itself avoid writing into the target repository. However, configured stages still run with their declared repository working directory and may generate files. MaintainerLint does not sandbox or rewrite those commands.
+
 ## Verification stages
 
 ```toml
@@ -50,7 +90,7 @@ Fields:
 - `cwd`: optional path relative to the repository root;
 - `allow_failure`: if `true`, a failed stage prints `WARN` and does not fail the overall `check` command.
 
-Commands run sequentially in v0.1.0. This makes output deterministic and avoids multiple agents/checks mutating the same workspace at once.
+Commands run sequentially. This makes output deterministic and avoids multiple agents/checks mutating the same workspace at once.
 
 ## Documentation rules
 
@@ -132,10 +172,12 @@ Only use this for deliberately fake fixtures that match a high-risk filename pat
 
 ## Logs
 
-`maintainerlint check` stores sanitized logs under:
+By default, `maintainerlint check` stores sanitized logs under:
 
 ```text
 .maintainerlint/logs/
 ```
 
-Add `.maintainerlint/` to `.gitignore`. On POSIX systems MaintainerLint attempts to create the directory with mode `0700` and log files with mode `0600`. On Windows those POSIX mode guarantees do not apply: MaintainerLint leaves NTFS ACL management to the host and the files inherit the working tree directory permissions.
+Add `.maintainerlint/` to `.gitignore` when using the default. On POSIX systems MaintainerLint attempts to create its state/log directories with mode `0700` and log files with mode `0600`. On Windows those POSIX mode guarantees do not apply: MaintainerLint leaves NTFS ACL management to the host and the files inherit the chosen directory permissions.
+
+Use `--state-dir` or `--log-dir` when the target repository should receive no MaintainerLint-owned log/state writes.

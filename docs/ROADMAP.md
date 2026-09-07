@@ -14,6 +14,9 @@ MaintainerLint is intentionally shipping in small, testable layers.
 ## v0.2 — better repository adoption
 
 - [x] `maintainerlint init --detect` conservatively detects common Python/Node/Rust/Go checks without overwriting existing config;
+- [x] zero-write `maintainerlint inspect --repo ...` trial path;
+- [x] `maintainerlint init --detect --dry-run` exact policy preview without target writes;
+- [x] external MaintainerLint-owned state/log routing with `--state-dir` / `--log-dir`;
 - [ ] richer glob semantics and rule diagnostics;
 - [x] Markdown documentation-impact output for PR/check summaries;
 - [ ] explicit generated-file consistency stage helpers;
@@ -36,4 +39,5 @@ MaintainerLint will not become:
 - an LLM proxy;
 - a replacement for tests;
 - a tool that uploads private source/logs by default;
+- a sandbox that claims arbitrary configured build/test commands cannot write to a repository;
 - a system that pretends human UX/security/release acceptance can always be automated.

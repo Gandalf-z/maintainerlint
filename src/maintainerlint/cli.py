@@ -17,13 +17,30 @@ from .templates import DEFAULT_CONFIG, PR_TEMPLATE, render_detected_config
 
 
 def _resolve_repo(path: str | None) -> Path:
-    start = Path(path or ".").resolve()
+    start = Path(path or ".").expanduser().resolve()
     return repo_root(start)
 
 
 def _config_path(repo: Path, value: str) -> Path:
-    path = Path(value)
-    return path if path.is_absolute() else repo / path
+    path = Path(value).expanduser()
+    return path.resolve() if path.is_absolute() else (repo / path).resolve()
+
+
+def _external_path(value: str) -> Path:
+    return Path(value).expanduser().resolve()
+
+
+def _display_path(path: Path, repo: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(repo.resolve()))
+    except ValueError:
+        pass
+    home = Path.home().resolve()
+    try:
+        return str(Path("~") / resolved.relative_to(home))
+    except ValueError:
+        return str(resolved)
 
 
 def _print_detection(result: DetectionResult) -> None:
@@ -39,33 +56,83 @@ def _print_detection(result: DetectionResult) -> None:
         )
 
 
+def _proposed_policy(target: Path, *, detect: bool) -> str:
+    config_text = DEFAULT_CONFIG
+    if detect:
+        detection = detect_stages(target)
+        _print_detection(detection)
+        if detection.usable:
+            config_text = render_detected_config(detection.proposals)
+            print(f"USE detected {detection.ecosystems[0]} stages")
+        else:
+            print(f"FALLBACK generic starter: {detection.fallback_reason}")
+    return config_text
+
+
+def _print_policy(config_text: str) -> None:
+    print("POLICY BEGIN maintainerlint.toml")
+    print(config_text, end="" if config_text.endswith("\n") else "\n")
+    print("POLICY END maintainerlint.toml")
+
+
 def command_init(args: argparse.Namespace) -> int:
-    target = Path(args.directory).resolve()
-    target.mkdir(parents=True, exist_ok=True)
+    target = Path(args.directory).expanduser().resolve()
+    dry_run = bool(getattr(args, "dry_run", False))
     config = target / "maintainerlint.toml"
+
     if config.exists() and not args.force:
         print(f"SKIP {config.name} already exists (use --force to replace)")
     else:
-        config_text = DEFAULT_CONFIG
-        if getattr(args, "detect", False):
-            detection = detect_stages(target)
-            _print_detection(detection)
-            if detection.usable:
-                config_text = render_detected_config(detection.proposals)
-                print(f"USE detected {detection.ecosystems[0]} stages")
-            else:
-                print(f"FALLBACK generic starter: {detection.fallback_reason}")
-        config.write_text(config_text, encoding="utf-8")
-        print(f"CREATE {config}")
+        config_text = _proposed_policy(target, detect=bool(getattr(args, "detect", False)))
+        if dry_run:
+            action = "REPLACE" if config.exists() else "CREATE"
+            print(f"WOULD {action} {config}")
+            _print_policy(config_text)
+        else:
+            target.mkdir(parents=True, exist_ok=True)
+            config.write_text(config_text, encoding="utf-8")
+            print(f"CREATE {config}")
 
     if args.pr_template:
         pr = target / ".github" / "pull_request_template.md"
-        pr.parent.mkdir(parents=True, exist_ok=True)
         if pr.exists() and not args.force:
             print(f"SKIP {pr} already exists (use --force to replace)")
+        elif dry_run:
+            action = "REPLACE" if pr.exists() else "CREATE"
+            print(f"WOULD {action} {pr}")
         else:
+            pr.parent.mkdir(parents=True, exist_ok=True)
             pr.write_text(PR_TEMPLATE, encoding="utf-8")
             print(f"CREATE {pr}")
+
+    if dry_run:
+        print("ZERO-WRITE dry-run: MaintainerLint created or modified no target files")
+    return 0
+
+
+def command_inspect(args: argparse.Namespace) -> int:
+    repo = _resolve_repo(args.repo)
+    detection = detect_stages(repo)
+    print(f"INSPECT repository: {repo}")
+    _print_detection(detection)
+
+    if detection.usable:
+        config_text = render_detected_config(detection.proposals)
+        print(f"USE detected {detection.ecosystems[0]} stages")
+    else:
+        config_text = DEFAULT_CONFIG
+        print(f"FALLBACK generic starter: {detection.fallback_reason}")
+
+    _print_policy(config_text)
+
+    config = repo / "maintainerlint.toml"
+    if config.exists():
+        print("ADOPT init --detect would keep existing maintainerlint.toml")
+        print("ADOPT review first; --force is required to replace existing policy")
+    else:
+        print("ADOPT init --detect would create maintainerlint.toml")
+    print("ADOPT init --detect --pr-template would additionally create .github/pull_request_template.md")
+    print("ZERO-WRITE inspect: MaintainerLint created or modified no target files")
     return 0
 
 
@@ -82,7 +149,13 @@ def command_check(args: argparse.Namespace) -> int:
         print("SKIP no stages configured")
         return 0
 
-    log_root = repo / ".maintainerlint" / "logs"
+    if args.log_dir:
+        log_root = _external_path(args.log_dir)
+    elif args.state_dir:
+        log_root = _external_path(args.state_dir) / "logs"
+    else:
+        log_root = repo / ".maintainerlint" / "logs"
+
     failed = False
     for stage in stages:
         result = run_stage(stage, repo=repo, log_root=log_root)
@@ -91,7 +164,7 @@ def command_check(args: argparse.Namespace) -> int:
         if not result.passed:
             if result.failure_summary:
                 print("  failing: " + "; ".join(result.failure_summary))
-            print(f"  log: {result.log_path.relative_to(repo)}")
+            print(f"  log: {_display_path(result.log_path, repo)}")
             for line in result.failure_tail:
                 print(f"  | {line}")
             if not result.allowed_failure:
@@ -143,7 +216,8 @@ def command_scope(args: argparse.Namespace) -> int:
 
 def command_doctor(args: argparse.Namespace) -> int:
     repo = _resolve_repo(args.repo)
-    config = load_config(_config_path(repo, args.config))
+    config_path = _config_path(repo, args.config)
+    config = load_config(config_path)
     failed = False
     for finding in environment_findings():
         print(f"{finding.level} {finding.message}")
@@ -157,7 +231,7 @@ def command_doctor(args: argparse.Namespace) -> int:
             print(f"  - {path}")
     else:
         print("PASS no high-confidence secret-like tracked files found")
-    print(f"PASS config loaded: {_config_path(repo, args.config).relative_to(repo)}")
+    print(f"PASS config loaded: {_display_path(config_path, repo)}")
     return 1 if failed else 0
 
 
@@ -169,7 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"maintainerlint {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    init = sub.add_parser("init", help="create a starter MaintainerLint config")
+    init = sub.add_parser("init", help="create or preview a starter MaintainerLint config")
     init.add_argument("directory", nargs="?", default=".")
     init.add_argument("--force", action="store_true")
     init.add_argument(
@@ -177,13 +251,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="propose conservative stages from repository files before creating policy",
     )
+    init.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the exact proposed policy and planned writes without creating files",
+    )
     init.add_argument("--pr-template", action="store_true", help="also create a concise PR template")
     init.set_defaults(func=command_init)
+
+    inspect = sub.add_parser("inspect", help="inspect a repository and preview adoption without writes")
+    inspect.add_argument("--repo")
+    inspect.set_defaults(func=command_inspect)
 
     check = sub.add_parser("check", help="run configured low-output verification stages")
     check.add_argument("--repo")
     check.add_argument("--config", default="maintainerlint.toml")
     check.add_argument("--stage", action="append", help="run only this named stage; repeatable")
+    check.add_argument(
+        "--state-dir",
+        help="store MaintainerLint-owned state outside the repository; logs use DIR/logs",
+    )
+    check.add_argument(
+        "--log-dir",
+        help="store MaintainerLint-owned logs in DIR; overrides --state-dir for logs",
+    )
     check.set_defaults(func=command_check)
 
     impact = sub.add_parser("impact", help="evaluate documentation-drift rules for changed files")
