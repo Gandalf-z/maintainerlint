@@ -60,7 +60,18 @@ PASS tests (0.4s)
 PASS diff (0.0s)
 ```
 
-On failure, MaintainerLint prints a bounded sanitized tail and stores the complete **sanitized** log under `.maintainerlint/logs/`.
+On failure, MaintainerLint prints a bounded sanitized tail and stores the complete **sanitized** log under `.maintainerlint/logs/` by default.
+
+To keep MaintainerLint-owned state outside the target repository:
+
+```bash
+maintainerlint check \
+  --repo /path/to/project \
+  --config /tmp/project.toml \
+  --state-dir ~/.cache/maintainerlint/project
+```
+
+`--state-dir DIR` stores MaintainerLint-owned logs under `DIR/logs/`. `--log-dir DIR` overrides the log location directly. This is **MaintainerLint-owned zero-write**: MaintainerLint can keep its own logs/state out of the repository, but user-configured test/build/lint commands may still generate files in their working tree.
 
 ### 2. Documentation-drift gates
 
@@ -123,15 +134,25 @@ maintainerlint scope \
 
 In strict mode, an unexpected changed path exits non-zero and is listed explicitly. Renames check both the old and new path, deletions check the deleted path, and copies check the destination path.
 
-### 5. Safe starter setup and brownfield detection
+### 5. Zero-write inspection and safe starter setup
 
-The unchanged starter remains deliberately generic:
+For a first look at an existing repository, use shadow inspection:
 
 ```bash
-maintainerlint init --pr-template
+maintainerlint inspect --repo /path/to/project
 ```
 
-For an existing repository, explicitly opt into conservative check detection:
+`inspect` reads repository metadata, prints detected ecosystem signals, proposed commands, the exact TOML policy, and the files formal adoption would create. It does **not** create or modify repository files, execute detected commands, install dependencies, call an LLM, or access the network.
+
+You can preview the initializer itself the same way:
+
+```bash
+maintainerlint init --detect --dry-run
+```
+
+`--dry-run` prints planned file writes and the exact proposed `maintainerlint.toml` but creates no files or directories. Even `--force` remains non-writing while `--dry-run` is active.
+
+When you are ready to adopt:
 
 ```bash
 maintainerlint init --detect --pr-template
@@ -150,21 +171,36 @@ python -m pip install "https://github.com/Gandalf-z/maintainerlint/archive/refs/
 maintainerlint --version
 ```
 
-For a first trial in an existing repository, use a disposable branch because `init` writes `maintainerlint.toml`:
+For the lowest-risk first trial in an existing repository:
 
 ```bash
-git switch -c try-maintainerlint
+maintainerlint inspect --repo /path/to/project
+```
+
+If the proposed policy looks right, preview the exact initializer output:
+
+```bash
+cd /path/to/project
+maintainerlint init --detect --dry-run
+```
+
+Only after review, formally adopt it:
+
+```bash
 maintainerlint init --detect
 maintainerlint doctor
 ```
 
-Inspect the generated `maintainerlint.toml` before keeping it. If the proposed checks match the repository's existing maintenance policy, run:
+If you want to run checks while keeping MaintainerLint-owned logs outside the repository:
 
 ```bash
-maintainerlint check
+maintainerlint check \
+  --repo /path/to/project \
+  --config /tmp/project.toml \
+  --state-dir ~/.cache/maintainerlint/project
 ```
 
-If the proposal is wrong or too generic, delete the generated file or discard the trial branch. MaintainerLint deliberately prefers an explicit fallback over inventing repository-specific policy.
+Remember: MaintainerLint can keep **its own** state/logs outside the target repository. A configured `npm test`, build, formatter, code generator, or other repository command may still write files because MaintainerLint intentionally executes the maintainer's declared command as-is.
 
 Tried MaintainerLint in a real repository? [Open an adoption report](https://github.com/Gandalf-z/maintainerlint/issues/new?title=Adoption%20report%3A%20) with the public repository URL if shareable, the ecosystem, what MaintainerLint detected, and anything that worked or failed. Real negative feedback is as useful as a successful adoption report.
 
@@ -235,6 +271,7 @@ The repository itself uses MaintainerLint in CI.
 - **Human gates stay human.** Real-device, UX, release, or safety acceptance is not faked by CI.
 - **Repository truth beats chat memory.** Code, tests, configuration, Git history, and current-state docs are the durable record.
 - **No secret leakage for convenience.** Logs are sanitized before they are saved or printed.
+- **Shadow before adoption.** Maintainers should be able to inspect policy without letting MaintainerLint write into the target repository.
 
 ## Project status
 
