@@ -161,11 +161,14 @@ class ShadowModeTests(unittest.TestCase):
                 self.assertEqual(command_check(args), 1)
 
             logs = list(log_dir.glob("*.log"))
+            output = stream.getvalue()
             self.assertEqual(len(logs), 1)
             self.assertFalse(state_dir.exists())
             self.assertFalse((repo / ".maintainerlint").exists())
-            self.assertIn(str(log_dir), stream.getvalue())
-            self.assertIn("FAILED shadow::case", stream.getvalue())
+            self.assertIn("  log: ", output)
+            self.assertIn(log_dir.name, output)
+            self.assertIn(".log", output)
+            self.assertIn("FAILED shadow::case", output)
 
 
 if __name__ == "__main__":
